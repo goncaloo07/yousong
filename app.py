@@ -6,6 +6,13 @@ from werkzeug.utils import secure_filename
 from werkzeug.exceptions import RequestEntityTooLarge
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, TIT2, TPE1, APIC, error as ID3Error
+import psycopg2
+conn = psycopg2.connect(os.environ['DATABASE_URL'], sslmode='require')
+cur = conn.cursor()
+cur.execute("SELECT NOW()")
+print(cur.fetchone())
+cur.close()
+conn.close()
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
