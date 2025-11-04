@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>YouSong</title>
+  <link rel="icon" href="{{ url_for('static', filename='img/logosmallbg.png') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+  <header>
+    <div class="brand">
+      <img src="{{ url_for('static', filename='img/logo1.png') }}" class="logo" alt="YouSong" id="logoImg">
+      <div>
+        <h1>YouSong</h1>
+        <div class="subtitle">Arraste e solte .mp3</div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn" id="toggleTheme">Tema</button>
+    </div>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="flashes">
+    {% for category, message in messages %}
+    <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
+
+  <main class="container">
+    <section>
+      {% if not files %}
+      <div class="empty">
+        <strong>Sem músicas ainda</strong>
+        <p>Envie arquivos .mp3 usando a seção de upload.</p>
+      </div>
+      {% else %}
+      <div class="playlist">
+        <strong>Lista</strong>
+        <div style="height:8px"></div>
+        {% for file in files %}
+        <div class="track" data-src="{{ url_for('uploaded_file', filename=file.saved_name|urlencode) }}">
+          <div class="thumb"><img src="{{ file.cover }}" alt="thumb"></div>
+          <div class="info">
+            <div class="t">{{ file.title }}</div>
+            <div class="a">{{ file.artist }}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="small-btn btn-play" type="button" title="Tocar" aria-label="Tocar"
+              data-src="{{ url_for('uploaded_file', filename=file.saved_name|urlencode) }}">►</button> <button
+              class="small-btn btn-edit" type="button" data-file="{{ file.saved_name }}" title="Editar"
+              aria-label="Editar">✎</button>
+            <button class="small-btn btn-delete" data-file="{{ file.saved_name }}" aria-label="Excluir">✖</button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="upload-section">
+      <div class="uploader">
+        <label class="drop-zone" id="dropZone" for="fileInput">
+          <div style="font-weight:700">Arraste arquivos aqui</div>
+          <div style="color:var(--muted);font-size:0.92rem">Suporta .mp3 — arraste ou clique para escolher</div>
+        </label>
+        <form id="uploadForm" method="POST" enctype="multipart/form-data">
+          <input type="file" name="file" id="fileInput" accept="audio/mpeg" style="display:none" multiple>
+        </form>
+
+        <div style="display:flex;gap:8px;width:100%;justify-content:space-between;align-items:center">
+          <div style="color:var(--muted);font-size:0.9rem">Clique para selecionar ou solte arquivos</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn" id="uploadBtn">Enviar</button>
+          </div>
+        </div>
+        <div id="uploadProgress" style="display:none;margin-top:12px;">
+          <div style="color:var(--muted);font-size:0.9rem;margin-bottom:4px">Enviando arquivos...</div>
+          <progress id="progressBar" value="0" max="100" style="width:100%;height:8px;border-radius:4px;"></progress>
+          <div id="progressText" style="color:var(--muted);font-size:0.8rem;margin-top:4px">0%</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="player" id="playerBar" aria-hidden="true">
+    <button class="close-btn" id="closePlayer" title="Fechar player expandido">×</button>
+    <button class="play-btn" id="prevBtn" aria-label="Música anterior">⏮</button>
+    <button class="play-btn" id="playToggle" aria-label="Reproduzir/Pausar">►</button>
+    <button class="play-btn" id="nextBtn" aria-label="Próxima música">⏭</button>
+    <div style="width:64px;min-width:64px;">
+      <div id="playerThumb" style="width:56px;height:56px;border-radius:8px;overflow:hidden"><img
+          src="{{ url_for('static', filename='img/default_cover.png') }}"
+          style="width:100%;height:100%;object-fit:cover" /></div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column">
+      <div id="playerTitle" style="font-weight:700">Nenhuma música</div>
+      <div id="playerArtist" style="color:var(--muted);font-size:0.9rem">—</div>
+      <div class="progress" style="margin-top:8px;display:flex;gap:8px;align-items:center">
+        <input id="seek" type="range" min="0" max="100" value="0">
+        <div class="time" id="time">0:00 / 0:00</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:row;gap:8px;align-items:center">
+      <div style="font-size:0.8rem;color:var(--muted)">🔊</div>
+      <input id="volume" type="range" min="0" max="100" value="100" style="width:100px;">
+    </div>
+  </div>
+
+  <!-- Expanded Player Modal -->
+  <!-- Expanded Player Modal -->
+  <div id="expandedPlayer"
+    style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(10px);">
+    <div class="expanded-player-content">
+      <button class="close-expanded-btn" id="closeExpanded"
+        style="position:absolute;top:20px;right:20px;width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,0.1);color:white;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.3s ease;">×</button>
+
+      <div class="cover-container">
+        <img id="expandedThumb" src="{{ url_for('static', filename='img/default_cover.png') }}" alt="Capa do álbum">
+      </div>
+
+      <div class="track-info">
+        <div id="expandedTitle" class="track-title">Nenhuma música</div>
+        <div id="expandedArtist" class="track-artist">—</div>
+      </div>
+
+      <div class="progress-container">
+        <div class="progress-bar" id="expandedProgressBar">
+          <div class="progress-fill" id="expandedProgressFill"></div>
+        </div>
+        <div class="time-display">
+          <span id="expandedCurrentTime">0:00</span>
+          <span id="expandedDuration">0:00</span>
+        </div>
+      </div>
+
+      <div class="controls-container">
+        <button class="control-btn" id="expandedPrev" title="Música anterior">⏮</button>
+        <button class="control-btn play-pause-btn" id="expandedPlayToggle" title="Reproduzir/Pausar">►</button>
+        <button class="control-btn" id="expandedNext" title="Próxima música">⏭</button>
+      </div>
+
+      <div class="volume-container">
+        <div style="font-size:1.2rem;color:var(--muted)">🔊</div>
+        <input id="expandedVolume" type="range" min="0" max="100" value="100" class="volume-slider">
+      </div>
+    </div>
+  </div>
+
+  <!-- script moved to end -->
+
+  <!-- Edit Metadata Modal -->
+  <div id="editModal"
+    style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;z-index:1200">
+    <div class="modal-content">
+      <h3 style="margin:0 0 8px">Editar Detalhes de Música</h3>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input id="metaFile" type="hidden">
+        <label style="font-size:0.9rem;color:var(--muted)">Título</label>
+        <input id="metaTitle" type="text"
+          style="padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit">
+        <label style="font-size:0.9rem;color:var(--muted)">Artista</label>
+        <input id="metaArtist" type="text"
+          style="padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit">
+        <label style="font-size:0.9rem;color:var(--muted)">Capa Atual</label>
+        <img id="currentCoverImg"
+          style="width:100px;height:100px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.1);"
+          alt="Capa atual">
+        <label style="font-size:0.9rem;color:var(--muted)">Imagem de Capa (opcional)</label>
+        <input id="metaCover" type="file" accept="image/*"
+          style="padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit">
+        <button id="removeCoverBtn" class="small-btn" type="button">Remover Capa</button>
+        <div id="editError" style="display:none;color:#fca5a5;font-size:0.85rem"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button id="cancelEdit" class="small-btn">Cancelar</button>
+          <button id="saveEdit" class="small-btn">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/player.js') }}"></script>
+</body>
+
+</html>
