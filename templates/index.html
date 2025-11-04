@@ -20,6 +20,8 @@
       </div>
     </div>
     <div class="controls">
+      <span style="color:var(--muted);font-size:0.9rem;">Olá, {{ current_user.username }}!</span>
+      <a href="{{ url_for('logout') }}" class="btn">Logout</a>
       <button class="btn" id="toggleTheme">Tema</button>
     </div>
   </header>

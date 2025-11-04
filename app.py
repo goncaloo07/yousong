@@ -4,18 +4,54 @@ import urllib.parse
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, jsonify, flash, abort
 from werkzeug.utils import secure_filename
 from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, TIT2, TPE1, APIC, error as ID3Error
 import psycopg2
-conn = psycopg2.connect(os.environ['DATABASE_URL'], sslmode='require')
+
+# Database connection
+def get_db_connection():
+    return psycopg2.connect(os.environ['DATABASE_URL'], sslmode='require')
+
+# Initialize DB
+conn = get_db_connection()
 cur = conn.cursor()
-cur.execute("SELECT NOW()")
-print(cur.fetchone())
+cur.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(150) UNIQUE NOT NULL,
+    password_hash VARCHAR(128) NOT NULL
+);
+""")
+conn.commit()
 cur.close()
 conn.close()
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
+
+# Flask-Login setup
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+class User(UserMixin):
+    def __init__(self, id, username):
+        self.id = id
+        self.username = username
+
+@login_manager.user_loader
+def load_user(user_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, username FROM users WHERE id = %s", (user_id,))
+    user = cur.fetchone()
+    cur.close()
+    conn.close()
+    if user:
+        return User(user[0], user[1])
+    return None
 
 # Configurações
 UPLOAD_FOLDER = os.path.join(app.root_path, "uploads")
@@ -85,7 +121,59 @@ def get_mp3_info(filepath):
     return title, artist, cover
 
 
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    if request.method == "POST":
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if not username or not password:
+            flash("Username e password são obrigatórios.", "error")
+            return redirect(url_for('register'))
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("INSERT INTO users (username, password_hash) VALUES (%s, %s)",
+                        (username, generate_password_hash(password)))
+            conn.commit()
+            flash("Registo bem-sucedido! Faça login.", "success")
+            return redirect(url_for('login'))
+        except psycopg2.IntegrityError:
+            flash("Username já existe.", "error")
+        finally:
+            cur.close()
+            conn.close()
+    return render_template("register.html")
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    if request.method == "POST":
+        username = request.form.get('username')
+        password = request.form.get('password')
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, password_hash FROM users WHERE username = %s", (username,))
+        user = cur.fetchone()
+        cur.close()
+        conn.close()
+        if user and check_password_hash(user[1], password):
+            user_obj = User(user[0], username)
+            login_user(user_obj)
+            return redirect(url_for('index'))
+        flash("Credenciais inválidas.", "error")
+    return render_template("login.html")
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('index'))
+
 @app.route("/", methods=["GET", "POST"])
+@login_required
 def index():
     """Página inicial (upload e lista). Supports multiple files upload."""
     if request.method == "POST":
@@ -151,6 +239,7 @@ def uploaded_file(filename):
 
 
 @app.route("/delete/<path:filename>", methods=["POST"])
+@login_required
 def delete_file(filename):
     """Deleta música e capa relacionada."""
     filename = secure_filename(urllib.parse.unquote(filename))
@@ -180,6 +269,7 @@ def handle_file_too_large(e):
 
 
 @app.route("/api/musicas")
+@login_required
 def api_musicas():
     """Retorna lista JSON das músicas."""
     data = []
@@ -197,6 +287,7 @@ def api_musicas():
 
 
 @app.route("/edit_metadata", methods=["POST"])
+@login_required
 def edit_metadata():
     """
     Recebe FormData: file, title, artist, cover (opcional), remove_cover (opcional)
