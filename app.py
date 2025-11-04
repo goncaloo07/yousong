@@ -34,7 +34,7 @@ app.secret_key = os.urandom(24)
 # Flask-Login setup
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login'
+login_manager.login_view = 'auth'
 
 class User(UserMixin):
     def __init__(self, id, username):
@@ -121,50 +121,42 @@ def get_mp3_info(filepath):
     return title, artist, cover
 
 
-@app.route("/register", methods=["GET", "POST"])
-def register():
+@app.route("/auth", methods=["GET", "POST"])
+def auth():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
     if request.method == "POST":
+        action = request.form.get('action')
         username = request.form.get('username')
         password = request.form.get('password')
         if not username or not password:
             flash("Username e password são obrigatórios.", "error")
-            return redirect(url_for('register'))
+            return redirect(url_for('auth'))
         conn = get_db_connection()
         cur = conn.cursor()
-        try:
-            cur.execute("INSERT INTO users (username, password_hash) VALUES (%s, %s)",
-                        (username, generate_password_hash(password)))
-            conn.commit()
-            flash("Registo bem-sucedido! Faça login.", "success")
-            return redirect(url_for('login'))
-        except psycopg2.IntegrityError:
-            flash("Username já existe.", "error")
-        finally:
+        if action == 'register':
+            try:
+                cur.execute("INSERT INTO users (username, password_hash) VALUES (%s, %s)",
+                            (username, generate_password_hash(password)))
+                conn.commit()
+                flash("Registo bem-sucedido! Faça login.", "success")
+                return redirect(url_for('auth'))
+            except psycopg2.IntegrityError:
+                flash("Username já existe.", "error")
+            finally:
+                cur.close()
+                conn.close()
+        elif action == 'login':
+            cur.execute("SELECT id, password_hash FROM users WHERE username = %s", (username,))
+            user = cur.fetchone()
             cur.close()
             conn.close()
-    return render_template("register.html")
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
-    if request.method == "POST":
-        username = request.form.get('username')
-        password = request.form.get('password')
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT id, password_hash FROM users WHERE username = %s", (username,))
-        user = cur.fetchone()
-        cur.close()
-        conn.close()
-        if user and check_password_hash(user[1], password):
-            user_obj = User(user[0], username)
-            login_user(user_obj)
-            return redirect(url_for('index'))
-        flash("Credenciais inválidas.", "error")
-    return render_template("login.html")
+            if user and check_password_hash(user[1], password):
+                user_obj = User(user[0], username)
+                login_user(user_obj)
+                return redirect(url_for('index'))
+            flash("Credenciais inválidas.", "error")
+    return render_template("auth.html")
 
 @app.route("/logout")
 @login_required
