@@ -135,6 +135,16 @@ def auth():
         conn = get_db_connection()
         cur = conn.cursor()
         if action == 'register':
+            confirm_password = request.form.get('confirm_password')
+            if password != confirm_password:
+                flash("Passwords não coincidem.", "error")
+                return redirect(url_for('auth'))
+            if len(username) < 3:
+                flash("Username deve ter pelo menos 3 caracteres.", "error")
+                return redirect(url_for('auth'))
+            if len(password) < 6:
+                flash("Password deve ter pelo menos 6 caracteres.", "error")
+                return redirect(url_for('auth'))
             try:
                 cur.execute("INSERT INTO users (username, password_hash) VALUES (%s, %s)",
                             (username, generate_password_hash(password)))
@@ -257,6 +267,12 @@ def delete_file(filename):
 @app.errorhandler(RequestEntityTooLarge)
 def handle_file_too_large(e):
     flash("Arquivo excede o limite máximo (50 MB).", "error")
+    return redirect(url_for("index"))
+
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    flash("Erro interno do servidor. Tente novamente.", "error")
     return redirect(url_for("index"))
 
 

@@ -112,6 +112,14 @@
   padding: 0 4px;
 }
 
+.form-group input:invalid:not(:placeholder-shown) {
+  border-color: #ef4444;
+}
+
+.form-group input:invalid:not(:placeholder-shown) + label {
+  color: #ef4444;
+}
+
 .auth-form h2 {
   text-align: center;
   margin: 0 0 10px;
