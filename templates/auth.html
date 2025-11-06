@@ -105,26 +105,40 @@
                     registerForm.classList.add('hidden');
                     actionInput.value = 'login';
                     
-                    // Reset required attributes
+                    // Disable register form inputs (won't be submitted)
+                    document.getElementById('registerUsername').disabled = true;
+                    document.getElementById('registerPassword').disabled = true;
+                    document.getElementById('confirmPassword').disabled = true;
+                    
+                    // Enable login form inputs
+                    document.getElementById('loginUsername').disabled = false;
+                    document.getElementById('loginPassword').disabled = false;
                     document.getElementById('loginUsername').required = true;
                     document.getElementById('loginPassword').required = true;
-                    document.getElementById('registerUsername').required = false;
-                    document.getElementById('registerPassword').required = false;
-                    document.getElementById('confirmPassword').required = false;
                 } else {
                     loginForm.classList.add('hidden');
                     registerForm.classList.remove('hidden');
                     actionInput.value = 'register';
                     
-                    // Reset required attributes
-                    document.getElementById('loginUsername').required = false;
-                    document.getElementById('loginPassword').required = false;
+                    // Disable login form inputs (won't be submitted)
+                    document.getElementById('loginUsername').disabled = true;
+                    document.getElementById('loginPassword').disabled = true;
+                    
+                    // Enable register form inputs
+                    document.getElementById('registerUsername').disabled = false;
+                    document.getElementById('registerPassword').disabled = false;
+                    document.getElementById('confirmPassword').disabled = false;
                     document.getElementById('registerUsername').required = true;
                     document.getElementById('registerPassword').required = true;
                     document.getElementById('confirmPassword').required = true;
                 }
             });
         });
+
+        // Initialize - make sure register fields are disabled on load
+        document.getElementById('registerUsername').disabled = true;
+        document.getElementById('registerPassword').disabled = true;
+        document.getElementById('confirmPassword').disabled = true;
 
         // Form submission animation
         authForm.addEventListener('submit', (e) => {

@@ -134,6 +134,12 @@ def auth():
         username = request.form.get('username', '').strip()
         password = request.form.get('password')
         
+        # Debug logging
+        print(f"[DEBUG] Action: {action}")
+        print(f"[DEBUG] Username: {username}")
+        print(f"[DEBUG] Password length: {len(password) if password else 0}")
+        print(f"[DEBUG] Form data: {dict(request.form)}")
+        
         if not username or not password:
             flash("Username e password são obrigatórios.", "error")
             return redirect(url_for('auth'))
@@ -146,6 +152,8 @@ def auth():
             
             if action == 'register':
                 confirm_password = request.form.get('confirm_password')
+                print(f"[DEBUG] Confirm password length: {len(confirm_password) if confirm_password else 0}")
+                
                 if password != confirm_password:
                     flash("Passwords não coincidem.", "error")
                     return redirect(url_for('auth'))
@@ -157,14 +165,23 @@ def auth():
                     return redirect(url_for('auth'))
                 
                 try:
+                    hashed = generate_password_hash(password)
+                    print(f"[DEBUG] Inserting user: {username}")
                     cur.execute("INSERT INTO users (username, password_hash) VALUES (%s, %s)",
-                                (username, generate_password_hash(password)))
+                                (username, hashed))
                     conn.commit()
+                    print(f"[DEBUG] User registered successfully: {username}")
                     flash("Registo bem-sucedido! Faça login.", "success")
                     return redirect(url_for('auth'))
-                except psycopg2.IntegrityError:
+                except psycopg2.IntegrityError as e:
                     conn.rollback()
+                    print(f"[DEBUG] IntegrityError: {e}")
                     flash("Username já existe.", "error")
+                    return redirect(url_for('auth'))
+                except Exception as e:
+                    conn.rollback()
+                    print(f"[DEBUG] Insert error: {e}")
+                    flash("Erro ao criar conta. Tente novamente.", "error")
                     return redirect(url_for('auth'))
                     
             elif action == 'login':
@@ -173,13 +190,17 @@ def auth():
                 if user and check_password_hash(user[1], password):
                     user_obj = User(user[0], username)
                     login_user(user_obj)
+                    print(f"[DEBUG] User logged in: {username}")
                     return redirect(url_for('index'))
+                print(f"[DEBUG] Invalid credentials for: {username}")
                 flash("Credenciais inválidas.", "error")
                 return redirect(url_for('auth'))
         except Exception as e:
             if conn:
                 conn.rollback()
-            print(f"[Erro de autenticação] {e}")
+            print(f"[DEBUG] Auth error: {e}")
+            import traceback
+            traceback.print_exc()
             flash("Erro interno. Tente novamente.", "error")
             return redirect(url_for('auth'))
         finally:
