@@ -21,10 +21,16 @@ cur.execute("""
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(150) UNIQUE NOT NULL,
-    password_hash VARCHAR(128) NOT NULL
+    password_hash TEXT NOT NULL
 );
 """)
 conn.commit()
+# Alter column if exists to TEXT
+try:
+    cur.execute("ALTER TABLE users ALTER COLUMN password_hash TYPE TEXT;")
+    conn.commit()
+except psycopg2.Error:
+    conn.rollback()  # Added rollback on error
 cur.close()
 conn.close()
 
@@ -86,12 +92,10 @@ def get_mp3_info(filepath):
         audio = MP3(filepath, ID3=ID3)
         if audio.tags:
             tags = audio.tags
-            # Default para nome do arquivo sem prefixo UUID caso não haja tag
             default_title = os.path.splitext(strip_uuid_prefix(filepath))[0]
             title = tags.get('TIT2', None).text[0] if tags.get('TIT2', None) else default_title
             artist = tags.get('TPE1', None).text[0] if tags.get('TPE1', None) else "Desconhecido"
 
-            # Extrair capa (APIC) apenas uma vez por arquivo
             apic_tags = tags.getall("APIC") if hasattr(tags, 'getall') else []
             if apic_tags:
                 apic = apic_tags[0]
@@ -127,45 +131,63 @@ def auth():
         return redirect(url_for('index'))
     if request.method == "POST":
         action = request.form.get('action')
-        username = request.form.get('username')
+        username = request.form.get('username', '').strip()
         password = request.form.get('password')
+        
         if not username or not password:
             flash("Username e password são obrigatórios.", "error")
             return redirect(url_for('auth'))
-        conn = get_db_connection()
-        cur = conn.cursor()
-        if action == 'register':
-            confirm_password = request.form.get('confirm_password')
-            if password != confirm_password:
-                flash("Passwords não coincidem.", "error")
+        
+        conn = None
+        cur = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            
+            if action == 'register':
+                confirm_password = request.form.get('confirm_password')
+                if password != confirm_password:
+                    flash("Passwords não coincidem.", "error")
+                    return redirect(url_for('auth'))
+                if len(username) < 3:
+                    flash("Username deve ter pelo menos 3 caracteres.", "error")
+                    return redirect(url_for('auth'))
+                if len(password) < 6:
+                    flash("Password deve ter pelo menos 6 caracteres.", "error")
+                    return redirect(url_for('auth'))
+                
+                try:
+                    cur.execute("INSERT INTO users (username, password_hash) VALUES (%s, %s)",
+                                (username, generate_password_hash(password)))
+                    conn.commit()
+                    flash("Registo bem-sucedido! Faça login.", "success")
+                    return redirect(url_for('auth'))
+                except psycopg2.IntegrityError:
+                    conn.rollback()
+                    flash("Username já existe.", "error")
+                    return redirect(url_for('auth'))
+                    
+            elif action == 'login':
+                cur.execute("SELECT id, password_hash FROM users WHERE username = %s", (username,))
+                user = cur.fetchone()
+                if user and check_password_hash(user[1], password):
+                    user_obj = User(user[0], username)
+                    login_user(user_obj)
+                    return redirect(url_for('index'))
+                flash("Credenciais inválidas.", "error")
                 return redirect(url_for('auth'))
-            if len(username) < 3:
-                flash("Username deve ter pelo menos 3 caracteres.", "error")
-                return redirect(url_for('auth'))
-            if len(password) < 6:
-                flash("Password deve ter pelo menos 6 caracteres.", "error")
-                return redirect(url_for('auth'))
-            try:
-                cur.execute("INSERT INTO users (username, password_hash) VALUES (%s, %s)",
-                            (username, generate_password_hash(password)))
-                conn.commit()
-                flash("Registo bem-sucedido! Faça login.", "success")
-                return redirect(url_for('auth'))
-            except psycopg2.IntegrityError:
-                flash("Username já existe.", "error")
-            finally:
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            print(f"[Erro de autenticação] {e}")
+            flash("Erro interno. Tente novamente.", "error")
+            return redirect(url_for('auth'))
+        finally:
+            if cur:
                 cur.close()
+            if conn:
                 conn.close()
-        elif action == 'login':
-            cur.execute("SELECT id, password_hash FROM users WHERE username = %s", (username,))
-            user = cur.fetchone()
-            cur.close()
-            conn.close()
-            if user and check_password_hash(user[1], password):
-                user_obj = User(user[0], username)
-                login_user(user_obj)
-                return redirect(url_for('index'))
-            flash("Credenciais inválidas.", "error")
+                
     return render_template("auth.html")
 
 @app.route("/logout")
@@ -192,7 +214,6 @@ def index():
             unique_name = f"{uuid.uuid4().hex}_{original}"
             temp_path = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
             file.save(temp_path)
-            # Validação real: tenta abrir como MP3
             try:
                 _ = MP3(temp_path)
                 saved.append(original)
@@ -210,7 +231,6 @@ def index():
         if filename.lower().endswith(".mp3"):
             path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
             title, artist, cover = get_mp3_info(path)
-            # make cover url
             if cover.startswith("uploads/"):
                 cover_url = url_for("uploaded_file", filename=os.path.basename(cover))
             else:
@@ -233,7 +253,6 @@ def uploaded_file(filename):
     ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
     if ext not in allowed_exts:
         abort(403)
-    # Só permite servir arquivos que realmente existem no uploads
     full_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
     if not os.path.isfile(full_path):
         abort(404)
@@ -250,7 +269,6 @@ def delete_file(filename):
         try:
             os.remove(filepath)
         finally:
-            # também remove capas cacheadas associadas
             base = os.path.splitext(filename)[0]
             for ext in ("jpg", "jpeg", "png"):
                 cover_candidate = os.path.join(app.config["UPLOAD_FOLDER"], f"{base}.cover.{ext}")
@@ -316,7 +334,6 @@ def edit_metadata():
         return jsonify({"error": "Arquivo não encontrado."}), 404
 
     try:
-        # Load or create ID3 tags
         try:
             tags = ID3(filepath)
         except ID3Error:
@@ -329,10 +346,8 @@ def edit_metadata():
             tags.delall("TPE1")
             tags.add(TPE1(encoding=3, text=[artist]))
 
-        # Handle cover image
         cover_url = None
         if remove_cover:
-            # Remove existing cover files
             base = os.path.splitext(filename)[0]
             for ext in ("jpg", "jpeg", "png"):
                 cover_candidate = os.path.join(app.config["UPLOAD_FOLDER"], f"{base}.cover.{ext}")
@@ -341,14 +356,11 @@ def edit_metadata():
                         os.remove(cover_candidate)
                 except Exception:
                     pass
-            # Remove APIC from ID3
             tags.delall("APIC")
             cover_url = url_for("static", filename=DEFAULT_COVER)
         elif cover_file and cover_file.filename:
-            # Validate image
             if not cover_file.content_type.startswith('image/'):
                 return jsonify({"error": "Arquivo de capa deve ser uma imagem."}), 400
-            # Remove existing cover files
             base = os.path.splitext(filename)[0]
             for ext in ("jpg", "jpeg", "png"):
                 cover_candidate = os.path.join(app.config["UPLOAD_FOLDER"], f"{base}.cover.{ext}")
@@ -357,14 +369,12 @@ def edit_metadata():
                         os.remove(cover_candidate)
                 except Exception:
                     pass
-            # Save new cover
             ext = os.path.splitext(cover_file.filename)[1].lower()
             if ext not in ['.jpg', '.jpeg', '.png']:
-                ext = '.jpg'  # default
+                ext = '.jpg'
             cover_filename = f"{base}.cover{ext}"
             cover_path = os.path.join(app.config["UPLOAD_FOLDER"], cover_filename)
             cover_file.save(cover_path)
-            # Add to ID3
             with open(cover_path, 'rb') as img:
                 tags.delall("APIC")
                 tags.add(APIC(encoding=3, mime=cover_file.content_type, type=3, desc='Cover', data=img.read()))
@@ -378,6 +388,5 @@ def edit_metadata():
 
 
 if __name__ == "__main__":
-    # Só ativa debug se variável de ambiente FLASK_DEBUG=1
     debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
     app.run(debug=debug_mode, host="0.0.0.0", port=5000)

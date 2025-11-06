@@ -5,82 +5,145 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Autenticação - YouSong</title>
     <link rel="icon" href="{{ url_for('static', filename='img/logosmallbg.png') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
 </head>
 <body>
+    <div class="auth-background">
+        <div class="animated-bg"></div>
+    </div>
+    
     <div class="auth-container">
-        <button class="toggle-btn" id="toggleBtn">Mudar para Registar</button>
-        <div class="auth-form login" id="authForm">
-            <div class="brand" style="margin-bottom: 20px;">
-                <img src="{{ url_for('static', filename='img/logo1.png') }}" class="logo" alt="YouSong" id="logoImg">
-                <div>
-                    <h2>Login</h2>
-                    <div class="subtitle">Faça login para continuar</div>
-                </div>
+        <div class="auth-card">
+            <div class="logo-section">
+                <img src="{{ url_for('static', filename='img/logo1.png') }}" class="auth-logo" alt="YouSong">
+                <h1 class="app-title">YouSong</h1>
+                <p class="app-subtitle">Sua música, seu jeito</p>
             </div>
+
+            <div class="tabs">
+                <button class="tab active" data-tab="login">Login</button>
+                <button class="tab" data-tab="register">Registar</button>
+            </div>
+
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-            <div class="flashes" style="margin-bottom: 20px; width: 100%;">
+            <div class="messages">
                 {% for category, message in messages %}
-                <div class="flash {{ category }}">{{ message }}</div>
+                <div class="message {{ category }}">
+                    <span class="message-icon">{{ '✓' if category == 'success' else '✕' }}</span>
+                    <span>{{ message }}</span>
+                </div>
                 {% endfor %}
             </div>
             {% endif %}
             {% endwith %}
-            <form method="POST" id="authFormEl">
+
+            <form method="POST" id="authForm" class="auth-form">
                 <input type="hidden" name="action" value="login" id="actionInput">
-                <div class="form-group">
-                    <input type="text" name="username" id="username" placeholder=" " required>
-                    <label for="username">Username</label>
+                
+                <div class="form-container" id="loginForm">
+                    <div class="input-group">
+                        <label for="loginUsername">Username</label>
+                        <input type="text" name="username" id="loginUsername" required autocomplete="username">
+                    </div>
+                    <div class="input-group">
+                        <label for="loginPassword">Password</label>
+                        <input type="password" name="password" id="loginPassword" required autocomplete="current-password">
+                    </div>
+                    <button type="submit" class="submit-btn" id="submitBtn">
+                        <span class="btn-text">Entrar</span>
+                        <span class="btn-icon">→</span>
+                    </button>
                 </div>
-                <div class="form-group">
-                    <input type="password" name="password" id="password" placeholder=" " required>
-                    <label for="password">Password</label>
+
+                <div class="form-container hidden" id="registerForm">
+                    <div class="input-group">
+                        <label for="registerUsername">Username</label>
+                        <input type="text" name="username" id="registerUsername" minlength="3" autocomplete="username">
+                    </div>
+                    <div class="input-group">
+                        <label for="registerPassword">Password</label>
+                        <input type="password" name="password" id="registerPassword" minlength="6" autocomplete="new-password">
+                    </div>
+                    <div class="input-group">
+                        <label for="confirmPassword">Confirmar Password</label>
+                        <input type="password" name="confirm_password" id="confirmPassword" minlength="6" autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="submit-btn" id="submitBtn">
+                        <span class="btn-text">Criar Conta</span>
+                        <span class="btn-icon">→</span>
+                    </button>
                 </div>
-                <div class="form-group" id="confirmPasswordGroup" style="display: none;">
-                    <input type="password" name="confirm_password" id="confirmPassword" placeholder=" " required>
-                    <label for="confirmPassword">Confirmar Password</label>
-                </div>
-                <button type="submit" class="btn-submit" id="submitBtn">Login</button>
             </form>
+
+            <div class="auth-footer">
+                <p class="secure-text">🔒 Seguro e encriptado</p>
+            </div>
         </div>
     </div>
-    <script>
-        const toggleBtn = document.getElementById('toggleBtn');
-        const authForm = document.getElementById('authForm');
-        const actionInput = document.getElementById('actionInput');
-        const submitBtn = document.getElementById('submitBtn');
-        const subtitle = document.querySelector('.subtitle');
-        const h2 = document.querySelector('h2');
-        const confirmPasswordGroup = document.getElementById('confirmPasswordGroup');
-        const confirmPasswordInput = document.getElementById('confirmPassword');
-        let isLogin = true;
 
-        toggleBtn.addEventListener('click', () => {
-            isLogin = !isLogin;
-            authForm.classList.remove('login', 'register');
-            if (isLogin) {
-                authForm.classList.add('login');
-                h2.textContent = 'Login';
-                subtitle.textContent = 'Faça login para continuar';
-                submitBtn.textContent = 'Login';
-                actionInput.value = 'login';
-                toggleBtn.textContent = 'Mudar para Registar';
-                confirmPasswordGroup.style.display = 'none';
-                confirmPasswordInput.required = false;
-            } else {
-                authForm.classList.add('register');
-                h2.textContent = 'Registar';
-                subtitle.textContent = 'Crie uma conta';
-                submitBtn.textContent = 'Registar';
-                actionInput.value = 'register';
-                toggleBtn.textContent = 'Mudar para Login';
-                confirmPasswordGroup.style.display = 'block';
-                confirmPasswordInput.required = true;
-            }
+    <script>
+        const tabs = document.querySelectorAll('.tab');
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
+        const actionInput = document.getElementById('actionInput');
+        const authForm = document.getElementById('authForm');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabType = tab.dataset.tab;
+                
+                // Update tab styles
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                // Switch forms
+                if (tabType === 'login') {
+                    loginForm.classList.remove('hidden');
+                    registerForm.classList.add('hidden');
+                    actionInput.value = 'login';
+                    
+                    // Reset required attributes
+                    document.getElementById('loginUsername').required = true;
+                    document.getElementById('loginPassword').required = true;
+                    document.getElementById('registerUsername').required = false;
+                    document.getElementById('registerPassword').required = false;
+                    document.getElementById('confirmPassword').required = false;
+                } else {
+                    loginForm.classList.add('hidden');
+                    registerForm.classList.remove('hidden');
+                    actionInput.value = 'register';
+                    
+                    // Reset required attributes
+                    document.getElementById('loginUsername').required = false;
+                    document.getElementById('loginPassword').required = false;
+                    document.getElementById('registerUsername').required = true;
+                    document.getElementById('registerPassword').required = true;
+                    document.getElementById('confirmPassword').required = true;
+                }
+            });
         });
+
+        // Form submission animation
+        authForm.addEventListener('submit', (e) => {
+            const submitBtn = e.target.querySelector('.submit-btn');
+            submitBtn.classList.add('loading');
+            submitBtn.disabled = true;
+        });
+
+        // Animated background
+        const animatedBg = document.querySelector('.animated-bg');
+        for (let i = 0; i < 50; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.top = Math.random() * 100 + '%';
+            particle.style.animationDelay = Math.random() * 20 + 's';
+            particle.style.animationDuration = (Math.random() * 10 + 10) + 's';
+            animatedBg.appendChild(particle);
+        }
     </script>
 </body>
 </html>
