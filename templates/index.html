@@ -4,6 +4,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="YouSong: O seu player de música pessoal. Faça upload, organize e ouça suas músicas favoritas em um ambiente simples e elegante." />
+  <meta name="keywords" content="música, upload de música, organizador de música, MP3, biblioteca de música" />
+  <meta name="author" content="Gonçalo Pinto" />
+  <meta property="og:title" content="YouSong: Seu Player de Música Pessoal" />
+  <meta property="og:description" content="YouSong: O seu player de música pessoal. Faça upload, organize e ouça suas músicas favoritas em um ambiente simples e elegante." />
+  <meta property="og:image" content="{{ url_for('static', filename='img/logo1.png') }}" />
+  <meta property="og:url" content="{{ request.url }}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="YouSong: Seu Player de Música Pessoal" />
+  <meta name="twitter:description" content="YouSong: O seu player de música pessoal. Faça upload, organize e ouça suas músicas favoritas em um ambiente simples e elegante." />
+  <meta name="twitter:image" content="{{ url_for('static', filename='img/logo1.png') }}" />
+  <meta name="twitter:url" content="{{ request.url }}" />
   <title>YouSong</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logosmallbg.png') }}">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
